@@ -1,0 +1,86 @@
+# CertFlow — Docker Compose
+#
+# Starts all services needed for local development:
+#   - api:      FastAPI application (port 8000)
+#   - postgres: PostgreSQL database (port 5432)
+#   - redis:    Redis for Celery broker (port 6379)
+#   - worker:   Celery worker for background certificate generation
+#
+# Usage:
+#   docker compose up              # Start all services
+#   docker compose up -d           # Start in background
+#   docker compose down            # Stop all services
+#   docker compose logs -f api     # Follow API logs
+#   docker compose up --scale worker=3  # Run 3 Celery workers
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: certflow
+      POSTGRES_PASSWORD: certflow
+      POSTGRES_DB: certflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U certflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+pg8000://certflow:certflow@postgres:5432/certflow
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /app/storage
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: '["http://localhost:3000"]'
+    volumes:
+      - certificate_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  worker:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+pg8000://certflow:certflow@postgres:5432/certflow
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /app/storage
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+    volumes:
+      - certificate_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Celery worker command will be configured in Phase 7
+    command: >
+      sh -c "echo 'Celery worker will be configured in Phase 7' && sleep infinity"
+
+volumes:
+  postgres_data:
+  certificate_storage:
