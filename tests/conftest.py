@@ -20,8 +20,36 @@ Design decision:
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+from app.db.models.base import Base
 from app.main import create_app
+
+# Use an in-memory SQLite database for unit tests
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_db():
+    """Create all tables in the test database once per session."""
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def db_session():
+    """Yield a database session for a single test."""
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture
@@ -32,10 +60,6 @@ def app():
 
 @pytest.fixture
 def client(app):
-    """Provide a TestClient connected to the test application.
-
-    TestClient uses HTTPX under the hood and allows making HTTP requests
-    to the FastAPI app without starting a real server.
-    """
+    """Provide a TestClient connected to the test application."""
     with TestClient(app) as c:
         yield c

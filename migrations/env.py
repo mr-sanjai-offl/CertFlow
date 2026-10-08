@@ -20,10 +20,6 @@ from app.core.config import get_settings
 from app.db.models.base import Base
 
 # Import all models here so Alembic can detect them for autogenerate.
-# As models are added in later phases, import them here.
-# from app.db.models.job import GenerationJob
-# from app.db.models.recipient import CertificateRecipient
-# from app.db.models.certificate import Certificate
 
 # Alembic Config object (provides access to alembic.ini values)
 config = context.config

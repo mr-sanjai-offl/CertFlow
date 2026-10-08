@@ -78,6 +78,15 @@ PostgreSQL (status updates)
 - [x] Test framework with initial health check tests
 - [x] Linting and formatting configuration
 
+**Phase 2: Database Models and Migrations** ✅
+
+- [x] GenerationJob model
+- [x] CertificateRecipient model
+- [x] Certificate model
+- [x] Job and recipient status enums
+- [x] Alembic migration and verification
+- [x] Model-level unit tests
+
 ## Quick Start
 
 ### Prerequisites
@@ -185,6 +194,33 @@ certflow/
 ## Design Decisions
 
 Documented in the architecture document. Key decisions will be added to this section as the project progresses.
+
+- **Generic Uuid Type:** The database models use SQLAlchemy's generic `Uuid` type instead of PostgreSQL-specific `UUID`. This architectural correction ensures the application can seamlessly fall back to SQLite for robust unit testing while natively utilizing Postgres UUIDs in production.
+
+## Database Design
+
+The data layer uses the following relational hierarchy to enforce referential integrity and tracking:
+
+```
+GenerationJob
+     │ (1-to-many)
+     ↓
+CertificateRecipient
+     │ (1-to-1)
+     ↓
+Certificate
+```
+
+### 1. GenerationJob
+Tracks the bulk generation request. Contains counters (`total_count`, `success_count`, `failed_count`) to efficiently serve API progress requests without doing expensive aggregate queries. Uses an explicit `idempotency_key` constraint to prevent duplicate bulk jobs.
+- **States:** `QUEUED`, `PROCESSING`, `COMPLETED`, `COMPLETED_WITH_ERRORS`, `FAILED`
+
+### 2. CertificateRecipient
+Isolates per-recipient failure. Belongs to a job. Contains individual retry trackers (`attempt_count`) and safe string-based error representations (`error_code`, `error_message`) avoiding internal stack trace leakage.
+- **States:** `PENDING`, `PROCESSING`, `SUCCESS`, `FAILED`
+
+### 3. Certificate
+Represents the successfully generated artifact. Has a strictly enforced 1-to-1 relationship with the recipient (a failed recipient gets no artifact). Contains metadata like `storage_path` and `file_size`.
 
 ## License
 
