@@ -6,22 +6,32 @@ An asynchronous REST API for bulk certificate generation with job tracking, per-
 
 ---
 
-## Problem
+## 1. Project Overview
+
+CertFlow is a backend API that accepts bulk certificate generation requests, processes them asynchronously using a background worker, and provides endpoints to track progress and retrieve generated PDF certificates. It is built to be robust, secure, and production-ready.
+
+## 2. Problem Statement
 
 Organizations need to generate certificates for events — workshops, courses, competitions. When the recipient list grows to hundreds or thousands, generating certificates one-by-one through individual API requests is impractical. The process needs to:
+- Accept a batch of recipients in a single request.
+- Generate certificates asynchronously so the client isn't blocked.
+- Track progress so the client can monitor the job.
+- Handle individual failures without stopping the entire batch.
+- Allow generated certificates to be securely downloaded.
 
-- Accept a batch of recipients in a single request
-- Generate certificates asynchronously (the client shouldn't wait)
-- Track progress so the client can check how the job is going
-- Handle individual failures without stopping the entire batch
-- Allow generated certificates to be downloaded
+## 3. Key Features
 
-## Solution
+- **Bulk Processing**: Accept hundreds of recipients in a single payload.
+- **Asynchronous Execution**: Celery workers handle heavy PDF generation in the background.
+- **Per-Recipient Tracking**: Granular success and failure tracking for each individual recipient.
+- **Idempotency**: Prevent duplicate jobs from being created if a client retries a request.
+- **Secure Access**: API key authentication to protect business endpoints.
+- **Path Traversal Protection**: Securely stream files without exposing internal storage paths.
+- **Health Checks**: Unauthenticated liveness and readiness probes for orchestrator monitoring.
 
-CertFlow is a backend API that accepts bulk certificate generation requests, processes them asynchronously using a background worker, and provides endpoints to track progress and retrieve generated PDF certificates.
+## 4. Architecture and Request-Processing Flow
 
-### Architecture
-
+### Architecture Diagram
 ```
 Client
   │
@@ -50,7 +60,15 @@ Celery Worker (background processing)
 PostgreSQL (status updates)
 ```
 
-## Tech Stack
+### Request-to-Worker Flow
+1. Client sends a `POST /api/v1/jobs` request containing event details and a list of recipients.
+2. FastAPI validates the payload and creates the `GenerationJob` and its recipients inside a single PostgreSQL transaction.
+3. Once the database commit succeeds, the API dispatches the Job ID to the Celery queue via Redis.
+4. The HTTP endpoint immediately returns `202 Accepted` to the client.
+5. The Celery Worker picks up the job ID, fetches the job from PostgreSQL, and processes the recipients sequentially.
+6. The Worker generates the PDFs, stores them, and updates the database statuses.
+
+## 5. Technology Stack
 
 | Component | Technology | Purpose |
 |---|---|---|
@@ -64,265 +82,196 @@ PostgreSQL (status updates)
 | PDF Generation | ReportLab | Certificate PDF creation |
 | Testing | Pytest + HTTPX | Unit and integration tests |
 | Containerization | Docker Compose | Local development environment |
-| Code Quality | Ruff + Black | Linting and formatting |
+| Code Quality | Ruff | Linting and formatting |
 
-### Why Celery and Redis?
-
-- **Celery** is a mature Python task-processing framework that is suitable for handling asynchronous certificate-generation jobs in this project. It isolates CPU-heavy PDF generation from the Fast API web layer, ensuring endpoints remain responsive.
-- **Redis** is used as the message broker to queue tasks between FastAPI and Celery. It's lightweight, extremely fast, and natively supported by Celery.
-
-### Request-to-Worker Flow
-
-1. Client sends a `POST /api/v1/jobs` request containing event details and a list of recipients.
-2. FastAPI validates the payload via Pydantic and creates the `GenerationJob` and its recipients inside a single PostgreSQL transaction.
-3. Once the database commit succeeds, the API dispatches the Job ID to the Celery queue via Redis.
-4. The HTTP endpoint immediately returns `202 Accepted` to the client.
-5. The Celery Worker picks up the job ID, fetches the job from PostgreSQL, and processes the recipients sequentially.
-6. The Worker generates the PDFs, stores them, and updates the database statuses.
-
-**Known Limitations:** The database commit and Redis queue dispatch are not perfectly atomic. If the database commit succeeds but Redis is unavailable, the API will safely catch the failure, return a `503 Service Unavailable`, and keep the job safely in the database with a `QUEUED` state. The client can retry the idempotent request to successfully dispatch the queued job later.
-
-## Current Status
-
-**Phase 1: Project Foundation** ✅
-
-- [x] Project structure and configuration
-- [x] FastAPI application with health endpoints
-- [x] Database session management (skeleton)
-- [x] Alembic migration setup
-- [x] Docker Compose (PostgreSQL, Redis, API, Worker)
-- [x] Test framework with initial health check tests
-- [x] Linting and formatting configuration
-
-**Phase 2: Database Models and Migrations** ✅
-
-- [x] GenerationJob model
-- [x] CertificateRecipient model
-- [x] Certificate model
-- [x] Job and recipient status enums
-- [x] Alembic migration and verification
-- [x] Model-level unit tests
-
-**Phase 6: Celery Background Processing** ✅
-
-- [x] Celery application and Redis configuration
-- [x] Background worker dispatch boundary
-- [x] Sequential recipient PDF processing
-- [x] Worker-managed PostgreSQL sessions
-- [x] Idempotent retry handling
-- [x] Docker compose worker setup
-
-**Phase 7: Job Status and Progress API** ✅
-
-- [x] Job Details endpoint (`GET /api/v1/jobs/{job_id}`)
-- [x] Job Progress endpoint (`GET /api/v1/jobs/{job_id}/progress`)
-- [x] Job Recipients endpoint with pagination (`GET /api/v1/jobs/{job_id}/recipients`)
-- [x] Progress calculated accurately from recipient outcomes
-
-**Phase 8: Certificate Retrieval and Download API** ✅
-
-- [x] Certificate download endpoint (`GET /api/v1/certificates/{certificate_id}/download`)
-- [x] Stream artifact directly without loading into memory entirely
-- [x] Protect against path traversal and hide storage paths
-
-**Phase 9: API Key Authentication and Authorization** ✅
-
-- [x] Protect API using standard `X-API-Key` headers
-- [x] Fail-closed validation for configured keys
-- [x] Unauthenticated health checks for orchestrator monitoring
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.12+
-- PostgreSQL 16+ (or use Docker)
-- Redis 7+ (or use Docker)
-
-### Local Development (without Docker)
-
-```bash
-# 1. Clone and enter project
-git clone <repo-url>
-cd certflow
-
-# 2. Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or: venv\Scripts\activate  # Windows
-
-# 3. Install dependencies
-pip install -e ".[dev]"
-
-# 4. Copy environment config
-cp .env.example .env
-# Edit .env with your database and Redis connection details
-
-# 5. Run the application
-uvicorn app.main:app --reload
-
-# 6. Run tests
-pytest
-
-# 7. Run linting
-ruff check .
-
-# 8. Run formatting check
-black --check .
-```
-
-### Docker Development
-
-```bash
-# Start all services (PostgreSQL, Redis, API, Worker)
-docker compose up
-
-# The API will be available at http://localhost:8000
-# Swagger docs at http://localhost:8000/docs
-```
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/health` | Liveness check — is the process running? |
-| GET | `/health/ready` | Readiness check — are dependencies reachable? |
-| POST | `/api/v1/jobs` | Create a new bulk generation job. Returns `202 Accepted` |
-| GET | `/api/v1/jobs/{job_id}` | Retrieve job details, counters, and metadata |
-| GET | `/api/v1/jobs/{job_id}/progress` | Retrieve concise processing progress |
-| GET | `/api/v1/jobs/{job_id}/recipients` | List recipients and their results (paginated) |
-| GET | `/api/v1/certificates/{certificate_id}/download` | Download a successfully generated PDF certificate |
-
-### Polling for Progress
-
-To track a job, clients should poll the progress endpoint:
-
-```http
-GET /api/v1/jobs/123e4567-e89b-12d3-a456-426614174000/progress
-```
-
-**Example Response:**
-```json
-{
-  "job_id": "123e4567-e89b-12d3-a456-426614174000",
-  "status": "PROCESSING",
-  "total_count": 100,
-  "success_count": 50,
-  "failed_count": 5,
-  "pending_count": 45,
-  "processing_count": 0,
-  "progress_percentage": 55.0
-}
-```
-
-**How Progress is Calculated:**
-Progress percentage is accurately derived from the actual recipient records in the database, even while the background worker is running:
-`((success_count + failed_count) / total_count) * 100`
-
-### Job Status Meanings
-
-- `QUEUED`: Job is waiting to be picked up by the Celery worker.
-- `PROCESSING`: Worker is actively generating certificates.
-- `COMPLETED`: All recipients successfully processed.
-- `COMPLETED_WITH_ERRORS`: Job finished, but some recipients failed (e.g. invalid email).
-- `FAILED`: Total job failure (e.g. invalid event config) or all recipients failed.
-
-### Downloading Certificates
-
-To download a generated certificate by its ID:
-
-```bash
-curl -f -OJ http://localhost:8000/api/v1/certificates/123e4567-e89b-12d3-a456-426614174000/download
-```
-
-**Expected Success Response Headers:**
-```http
-HTTP/1.1 200 OK
-Content-Type: application/pdf
-Content-Disposition: attachment; filename="certificate-123e4567-e89b-12d3-a456-426614174000.pdf"
-```
-
-**Possible Errors:**
-- `404 Not Found`: The certificate record does not exist or the underlying PDF artifact is missing.
-
-*Note: Authentication is currently not implemented. This endpoint relies on the application's existing access model.*
-
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_URL` | `postgresql+pg8000://certflow:certflow@localhost:5432/certflow` | PostgreSQL connection string |
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis URL for Celery broker/backend |
-| `STORAGE_DIR` | `./storage` | Local certificate storage path |
-| `MAX_RECIPIENTS_PER_JOB` | `1000` | Maximum recipients per request |
-| `MAX_RETRIES` | `3` | Retry limit for transient failures |
-| `LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
-| `ENVIRONMENT` | `development` | Environment name |
-| `CORS_ORIGINS` | `http://localhost:3000` | Allowed CORS origins (comma-separated) |
-
-## Running Tests
-
-```bash
-# Run all tests
-pytest
-
-# Run with verbose output
-pytest -v
-
-# Run specific test file
-pytest tests/integration/test_health.py
-```
-
-## Project Structure
+## 6. Repository Structure
 
 ```
 certflow/
 ├── app/
 │   ├── main.py              # FastAPI application entry point
 │   ├── api/v1/              # HTTP route handlers
-│   ├── core/                # Config, logging, exceptions
+│   ├── core/                # Config, logging, security, exceptions
 │   ├── db/                  # Database session and ORM models
 │   ├── schemas/             # Pydantic validation models
-│   ├── services/            # Business logic
+│   ├── services/            # Business logic (Job, Certificate, Storage)
 │   ├── workers/             # Celery background tasks
 │   └── generators/          # PDF certificate generation
-├── tests/                   # Test suite
+├── tests/                   # Unit and integration test suite
 ├── migrations/              # Alembic database migrations
 ├── templates/               # Certificate template assets
 └── storage/                 # Generated certificate files (gitignored)
 ```
 
-## Design Decisions
+## 7. Prerequisites
 
-Documented in the architecture document. Key decisions will be added to this section as the project progresses.
+- Python 3.12+
+- PostgreSQL 16+ (or use Docker)
+- Redis 7+ (or use Docker)
+- Docker & Docker Compose (for containerized execution)
 
-- **Generic Uuid Type:** The database models use SQLAlchemy's generic `Uuid` type instead of PostgreSQL-specific `UUID`. This architectural correction ensures the application can seamlessly fall back to SQLite for robust unit testing while natively utilizing Postgres UUIDs in production.
+## 8. Environment Setup
 
-## Database Design
-
-The data layer uses the following relational hierarchy to enforce referential integrity and tracking:
-
-```
-GenerationJob
-     │ (1-to-many)
-     ↓
-CertificateRecipient
-     │ (1-to-1)
-     ↓
-Certificate
+Copy the environment example and configure your variables:
+```bash
+cp .env.example .env
 ```
 
-### 1. GenerationJob
-Tracks the bulk generation request. Contains counters (`total_count`, `success_count`, `failed_count`) to efficiently serve API progress requests without doing expensive aggregate queries. Uses an explicit `idempotency_key` constraint to prevent duplicate bulk jobs.
-- **States:** `QUEUED`, `PROCESSING`, `COMPLETED`, `COMPLETED_WITH_ERRORS`, `FAILED`
+Edit `.env` to match your local setup if you are not using Docker for the database and Redis.
 
-### 2. CertificateRecipient
-Isolates per-recipient failure. Belongs to a job. Contains individual retry trackers (`attempt_count`) and safe string-based error representations (`error_code`, `error_message`) avoiding internal stack trace leakage.
-- **States:** `PENDING`, `PROCESSING`, `SUCCESS`, `FAILED`
+## 9. How to Generate a Strong API Key
 
-### 3. Certificate
-Represents the successfully generated artifact. Has a strictly enforced 1-to-1 relationship with the recipient (a failed recipient gets no artifact). Contains metadata like `storage_path` and `file_size`.
+All business endpoints are protected by API Key authentication. To generate a cryptographically strong, URL-safe key, run the following command in your terminal:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+Place the output in your `.env` file under the `API_KEY` variable.
 
-## License
+## 10. How to Start the Services with Docker Compose
 
-MIT
+To start the API, PostgreSQL, Redis, and the Celery worker all together:
+```bash
+docker compose up --build
+```
+The API will be available at `http://localhost:8000`.
+
+## 11. How to Run Database Migrations
+
+When running locally without Docker:
+```bash
+alembic upgrade head
+```
+*(Note: The provided Docker Compose configuration automatically runs migrations before starting the FastAPI server.)*
+
+## 12. How to Start the API and Celery Worker (Local)
+
+If you are developing locally without Docker Compose:
+
+**Terminal 1 (FastAPI):**
+```bash
+uvicorn app.main:app --reload
+```
+
+**Terminal 2 (Celery Worker):**
+```bash
+# On Windows, add --pool=solo
+celery -A app.workers.celery_app worker --loglevel=info
+```
+
+## 13. How to Open Swagger UI and Authenticate
+
+1. Navigate to `http://localhost:8000/docs` in your browser.
+2. Click the green **Authorize** button near the top right.
+3. Enter your configured `API_KEY` in the `X-API-Key` field.
+4. Click **Authorize** and then **Close**. You can now execute protected endpoints from the Swagger UI.
+
+## 14. Example Job-Creation Request and Response
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/api/v1/jobs \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Idempotency-Key: unique-request-id-123" \
+  -d '{
+    "event": {
+      "name": "Python Workshop 2026",
+      "organization": "Open Source Tech",
+      "date": "2026-10-15"
+    },
+    "recipients": [
+      {"name": "Alice Smith", "email": "alice@example.com"},
+      {"name": "Bob Jones", "email": "bob@example.com"}
+    ]
+  }'
+```
+
+**Response (`202 Accepted`):**
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "QUEUED",
+  "event_name": "Python Workshop 2026",
+  "event_organization": "Open Source Tech",
+  "event_date": "2026-10-15",
+  "total_count": 2,
+  "success_count": 0,
+  "failed_count": 0,
+  "created_at": "2026-10-09T14:30:00Z"
+}
+```
+
+## 15. How to Check Job Status and Progress
+
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/api/v1/jobs/123e4567-e89b-12d3-a456-426614174000/progress
+```
+
+**Response:**
+```json
+{
+  "job_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "PROCESSING",
+  "total_count": 2,
+  "success_count": 1,
+  "failed_count": 0,
+  "pending_count": 1,
+  "processing_count": 0,
+  "progress_percentage": 50.0
+}
+```
+
+## 16. How to Retrieve Paginated Recipient Results
+
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/api/v1/jobs/123e4567-e89b-12d3-a456-426614174000/recipients?skip=0&limit=10"
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "abc-123",
+    "name": "Alice Smith",
+    "email": "alice@example.com",
+    "status": "SUCCESS",
+    "certificate_id": "def-456",
+    "error_message": null
+  }
+]
+```
+
+## 17. How to Download a Generated Certificate
+
+Extract the `certificate_id` from the recipient results and download the PDF. The `-f -O -J` flags tell curl to save the file using the server-provided filename.
+
+```bash
+curl -f -OJ -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/api/v1/certificates/def-456/download
+```
+
+## 18. How to Run Tests and Linting
+
+```bash
+# Run all tests
+pytest
+
+# Run linting with Ruff
+ruff check .
+
+# Run formatting checks with Ruff
+ruff format --check .
+```
+
+## 19. Important Design Decisions
+
+- **Idempotency:** The `/jobs` POST endpoint uses an `Idempotency-Key` header. If a client safely retries a network-failed request, the API returns the existing queued job instead of duplicating it.
+- **Celery Retry Safety:** Background workers manage their own database sessions and use standard Celery retries for transient errors. They do not prematurely mark jobs as `FAILED` unless `max_retries` is exceeded.
+- **Graceful Health Checks:** The `/health/ready` check does not hard-fail the entire API if Redis is temporarily unavailable. The API degrades gracefully, allowing users to still download existing certificates.
+- **Path Traversal Protection:** The storage service ensures absolute validation against directory escapes (`../../etc/passwd`) before streaming any file bytes to the client.
+
+## 20. Known Limitations and Future Improvements
+
+- **Single-Tenant Authorization:** Currently, the API uses a single global `API_KEY` for all authentication. It prevents anonymous access but does not provide multi-tenant or per-user data isolation. Any valid key can access any job.
+- **Synchronous Polling:** Progress tracking currently relies on REST polling. WebSockets or Server-Sent Events (SSE) would improve real-time tracking efficiency.
+- **Local Storage:** Certificates are stored on the local filesystem. This is unsuitable for horizontal scaling. Future enhancements should include an AWS S3 (or compatible) storage implementation behind the `StorageService` abstraction.
+- **Rate Limiting:** No strict API rate limits exist yet to prevent abuse of the generation endpoint.

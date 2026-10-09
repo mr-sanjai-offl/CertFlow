@@ -73,15 +73,18 @@ def readiness_check(db: Session = Depends(get_db)) -> dict:
         checks["redis"] = "unavailable"
 
     # Determine overall status
-    all_ok = all(v == "ok" for v in checks.values())
-    status_code = 200 if all_ok else 503
+    # Redis is important for queueing new jobs, but the API can still serve
+    # status checks and certificate downloads if only Redis is down.
+    # Therefore, we consider the API "ready" as long as the database is up.
+    is_ready = checks.get("database") == "ok"
+    status_code = 200 if is_ready else 503
 
     from fastapi.responses import JSONResponse
 
     return JSONResponse(
         status_code=status_code,
         content={
-            "status": "ready" if all_ok else "not_ready",
+            "status": "ready" if is_ready else "not_ready",
             **checks,
         },
     )

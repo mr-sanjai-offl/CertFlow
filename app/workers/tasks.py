@@ -84,19 +84,26 @@ def process_generation_job(self, job_id: str):
         db.rollback()
         logger.exception(f"Unexpected error processing job {job_id}: {e}")
 
-        # Try to mark the job as failed if possible
-        try:
-            job_uuid = uuid.UUID(job_id)
-            job = db.query(GenerationJob).filter_by(id=job_uuid).first()
-            if job:
-                job.status = JobStatus.FAILED
-                db.commit()
-        except Exception:
-            db.rollback()
-
-        # Retry for transient Celery/DB issues, with exponential backoff
+        # We only retry for expected transient errors or general exceptions
         retries = getattr(self.request, "retries", 0)
-        raise self.retry(exc=e, countdown=2**retries)
+
+        from celery.exceptions import Retry
+
+        try:
+            self.retry(exc=e, countdown=2**retries)
+        except Retry:
+            raise
+        except self.MaxRetriesExceededError:
+            # Mark job as failed only if retries are exhausted
+            try:
+                job_uuid = uuid.UUID(job_id)
+                job = db.query(GenerationJob).filter_by(id=job_uuid).first()
+                if job:
+                    job.status = JobStatus.FAILED
+                    db.commit()
+            except Exception:
+                db.rollback()
+            raise
 
     finally:
         db.close()

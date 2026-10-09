@@ -40,8 +40,18 @@ class TestReadinessEndpoint:
         assert "database" in data
         assert "redis" in data
 
-    def test_readiness_unavailable_without_deps(self, client):
+    def test_readiness_unavailable_without_deps(self, client, monkeypatch):
         """Without running DB/Redis, readiness should report not_ready."""
+
+        # Mock the database check to fail
+        def mock_execute(*args, **kwargs):
+            raise Exception("DB Down")
+
+        # We need to mock the Session's execute method for this request
+        from sqlalchemy.orm import Session
+
+        monkeypatch.setattr(Session, "execute", mock_execute)
+
         response = client.get("/health/ready")
         # When deps are down, we expect 503
         assert response.status_code == 503

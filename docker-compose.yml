@@ -51,6 +51,7 @@ services:
       ENVIRONMENT: development
       LOG_LEVEL: INFO
       CORS_ORIGINS: '["http://localhost:3000"]'
+      API_KEY: ${API_KEY:-development_secret_key_only_for_local_testing}
     volumes:
       - certificate_storage:/app/storage
     depends_on:
@@ -70,6 +71,7 @@ services:
       STORAGE_DIR: /app/storage
       ENVIRONMENT: development
       LOG_LEVEL: INFO
+      API_KEY: ${API_KEY:-development_secret_key_only_for_local_testing}
     volumes:
       - certificate_storage:/app/storage
     depends_on:
