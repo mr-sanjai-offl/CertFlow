@@ -18,6 +18,8 @@ Design decision:
   This separation is documented in the README.
 """
 
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -43,6 +45,13 @@ def setup_test_db():
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def mock_celery_dispatch():
+    """Mock Celery task dispatch to avoid requiring Redis during normal tests."""
+    with patch("app.workers.tasks.process_generation_job.delay") as mock_delay:
+        yield mock_delay
 
 
 @pytest.fixture

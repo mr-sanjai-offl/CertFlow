@@ -8,13 +8,25 @@ import uuid
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import DatabaseError
+from app.core.exceptions import DatabaseError, DispatchError
 from app.db.models.enums import JobStatus, RecipientStatus
 from app.db.models.job import GenerationJob
 from app.db.models.recipient import CertificateRecipient
 from app.schemas.job import JobCreate
+from app.workers.tasks import process_generation_job
 
 logger = logging.getLogger(__name__)
+
+
+def _dispatch_job(job_id: str) -> None:
+    try:
+        process_generation_job.delay(job_id)
+        logger.info(f"Dispatched job {job_id} to Celery.")
+    except Exception as e:
+        logger.error(f"Failed to dispatch job {job_id} to Celery: {e}")
+        raise DispatchError(
+            f"Job {job_id} is created but failed to queue for background processing. Redis might be down."
+        ) from e
 
 
 def create_job(db: Session, job_in: JobCreate, idempotency_key: str | None = None) -> GenerationJob:
@@ -34,6 +46,8 @@ def create_job(db: Session, job_in: JobCreate, idempotency_key: str | None = Non
             logger.info(
                 f"Idempotency hit: Returning existing job {existing_job.id} for key {idempotency_key}"
             )
+            if existing_job.status == JobStatus.QUEUED:
+                _dispatch_job(str(existing_job.id))
             return existing_job
 
     # Start constructing the new job
@@ -72,6 +86,10 @@ def create_job(db: Session, job_in: JobCreate, idempotency_key: str | None = Non
         db.commit()
         db.refresh(new_job)
         logger.info(f"Created new GenerationJob {new_job.id} with {total_recipients} recipients")
+
+        # Dispatch to celery after successful commit
+        _dispatch_job(str(new_job.id))
+
         return new_job
 
     except IntegrityError as e:
@@ -86,11 +104,17 @@ def create_job(db: Session, job_in: JobCreate, idempotency_key: str | None = Non
                 .first()
             )
             if existing_job:
+                if existing_job.status == JobStatus.QUEUED:
+                    _dispatch_job(str(existing_job.id))
                 return existing_job
 
         # If it's a different IntegrityError, wrap and raise it
         logger.error(f"Database integrity error during job creation: {str(e)}")
         raise DatabaseError("Database constraint violated during job creation.") from e
+
+    except DispatchError:
+        # Job is already committed; Redis is just down. Let the API layer return 503.
+        raise
 
     except Exception as e:
         db.rollback()

@@ -77,9 +77,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # Celery worker command will be configured in Phase 7
-    command: >
-      sh -c "echo 'Celery worker will be configured in Phase 7' && sleep infinity"
+    command: celery -A app.workers.celery_app worker --loglevel=info
 
 volumes:
   postgres_data:

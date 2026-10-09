@@ -88,6 +88,17 @@ class DatabaseError(CertFlowError):
         super().__init__(message=message, error_code=error_code, status_code=500)
 
 
+class DispatchError(CertFlowError):
+    """Raised when a job is created but fails to queue for processing."""
+
+    def __init__(
+        self,
+        message: str = "Job created successfully, but failed to queue for background processing. Please retry.",
+        error_code: str = "DISPATCH_ERROR",
+    ) -> None:
+        super().__init__(message=message, error_code=error_code, status_code=503)
+
+
 # ---------------------------------------------------------------------------
 # Exception handlers — register these on the FastAPI app
 # ---------------------------------------------------------------------------

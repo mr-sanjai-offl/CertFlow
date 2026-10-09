@@ -66,6 +66,22 @@ PostgreSQL (status updates)
 | Containerization | Docker Compose | Local development environment |
 | Code Quality | Ruff + Black | Linting and formatting |
 
+### Why Celery and Redis?
+
+- **Celery** is a mature Python task-processing framework that is suitable for handling asynchronous certificate-generation jobs in this project. It isolates CPU-heavy PDF generation from the Fast API web layer, ensuring endpoints remain responsive.
+- **Redis** is used as the message broker to queue tasks between FastAPI and Celery. It's lightweight, extremely fast, and natively supported by Celery.
+
+### Request-to-Worker Flow
+
+1. Client sends a `POST /api/v1/jobs` request containing event details and a list of recipients.
+2. FastAPI validates the payload via Pydantic and creates the `GenerationJob` and its recipients inside a single PostgreSQL transaction.
+3. Once the database commit succeeds, the API dispatches the Job ID to the Celery queue via Redis.
+4. The HTTP endpoint immediately returns `202 Accepted` to the client.
+5. The Celery Worker picks up the job ID, fetches the job from PostgreSQL, and processes the recipients sequentially.
+6. The Worker generates the PDFs, stores them, and updates the database statuses.
+
+**Known Limitations:** The database commit and Redis queue dispatch are not perfectly atomic. If the database commit succeeds but Redis is unavailable, the API will safely catch the failure, return a `503 Service Unavailable`, and keep the job safely in the database with a `QUEUED` state. The client can retry the idempotent request to successfully dispatch the queued job later.
+
 ## Current Status
 
 **Phase 1: Project Foundation** ✅
@@ -86,6 +102,15 @@ PostgreSQL (status updates)
 - [x] Job and recipient status enums
 - [x] Alembic migration and verification
 - [x] Model-level unit tests
+
+**Phase 6: Celery Background Processing** ✅
+
+- [x] Celery application and Redis configuration
+- [x] Background worker dispatch boundary
+- [x] Sequential recipient PDF processing
+- [x] Worker-managed PostgreSQL sessions
+- [x] Idempotent retry handling
+- [x] Docker compose worker setup
 
 ## Quick Start
 
