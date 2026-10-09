@@ -70,7 +70,9 @@ def list_job_recipients(
     """
     List recipients for a specific job with pagination.
     """
-    items, total = job_service.get_job_recipients(db=db, job_id=str(job_id), limit=limit, offset=offset)
+    items, total = job_service.get_job_recipients(
+        db=db, job_id=str(job_id), limit=limit, offset=offset
+    )
     if items is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 

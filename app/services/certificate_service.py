@@ -1,7 +1,11 @@
 import hashlib
 import os
+import uuid
 from typing import Any
 
+from sqlalchemy.orm import Session
+
+from app.db.models.certificate import Certificate
 from app.db.models.job import GenerationJob
 from app.db.models.recipient import CertificateRecipient
 from app.services.certificate_generator import CertificateGenerationError, generate_certificate_pdf
@@ -68,3 +72,28 @@ def generate_and_store_certificate(
                 os.remove(temp_pdf_path)
             except OSError:
                 pass  # Best effort cleanup
+
+
+def get_certificate_download_stream(
+    db: Session, certificate_id: str, storage_service: LocalStorageService
+) -> tuple[Certificate | None, Any | None]:
+    """
+    Retrieves the certificate record and attempts to open its physical artifact.
+    Returns a tuple of (Certificate DB model, stream generator).
+    If the DB record is missing, returns (None, None).
+    If the DB record exists but the file is missing, returns (Certificate, None).
+    """
+    try:
+        cert_uuid = uuid.UUID(certificate_id)
+    except ValueError:
+        return None, None
+
+    cert = db.query(Certificate).filter_by(id=cert_uuid).first()
+    if not cert:
+        return None, None
+
+    try:
+        stream = storage_service.open_artifact(cert.storage_path)
+        return cert, stream
+    except StorageError:
+        return cert, None

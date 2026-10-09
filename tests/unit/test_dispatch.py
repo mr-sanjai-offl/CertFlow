@@ -39,7 +39,7 @@ def test_dispatch_failure_raises_error_but_keeps_job(db_session):
             create_job(db=db_session, job_in=VALID_PAYLOAD)
 
     # The job should still be saved in the database
-    job = db_session.query(GenerationJob).first()
+    job = db_session.query(GenerationJob).order_by(GenerationJob.created_at.desc()).first()
     assert job is not None
     assert job.status == JobStatus.QUEUED
 

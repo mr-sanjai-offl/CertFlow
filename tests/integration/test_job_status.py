@@ -1,13 +1,13 @@
 import datetime
 import uuid
 
-import pytest
 from sqlalchemy.orm import Session
 
+from app.db.models.certificate import Certificate
 from app.db.models.enums import JobStatus, RecipientStatus
 from app.db.models.job import GenerationJob
 from app.db.models.recipient import CertificateRecipient
-from app.db.models.certificate import Certificate
+
 
 def create_mock_job(db_session: Session, recipient_count: int = 2) -> GenerationJob:
     job_id = uuid.uuid4()
@@ -37,6 +37,7 @@ def create_mock_job(db_session: Session, recipient_count: int = 2) -> Generation
     db_session.refresh(job)
     return job
 
+
 class TestJobDetailsAPI:
     def test_get_job_details_success(self, client, db_session):
         job = create_mock_job(db_session)
@@ -60,6 +61,7 @@ class TestJobDetailsAPI:
         # FastAPI Path parameter validation should return 422
         assert response.status_code == 422
 
+
 class TestJobProgressAPI:
     def test_queued_job_returns_zero_processed(self, client, db_session):
         job = create_mock_job(db_session, recipient_count=5)
@@ -78,7 +80,7 @@ class TestJobProgressAPI:
         for rec in job.recipients:
             rec.status = RecipientStatus.SUCCESS
         db_session.commit()
-        
+
         response = client.get(f"/api/v1/jobs/{job.id}/progress")
         assert response.status_code == 200
         data = response.json()
@@ -93,7 +95,7 @@ class TestJobProgressAPI:
         recipients[2].status = RecipientStatus.PROCESSING
         recipients[3].status = RecipientStatus.PENDING
         db_session.commit()
-        
+
         response = client.get(f"/api/v1/jobs/{job.id}/progress")
         assert response.status_code == 200
         data = response.json()
@@ -110,7 +112,7 @@ class TestJobProgressAPI:
         for rec in job.recipients:
             rec.status = RecipientStatus.FAILED
         db_session.commit()
-        
+
         response = client.get(f"/api/v1/jobs/{job.id}/progress")
         assert response.status_code == 200
         data = response.json()
@@ -126,6 +128,7 @@ class TestJobProgressAPI:
         assert data["total_count"] == 0
         assert data["progress_percentage"] == 0.0
 
+
 class TestRecipientListAPI:
     def test_existing_job_returns_recipients(self, client, db_session):
         job = create_mock_job(db_session, recipient_count=2)
@@ -135,7 +138,7 @@ class TestRecipientListAPI:
             recipient_id=job.recipients[0].id,
             file_name="cert.pdf",
             storage_path="/tmp/cert.pdf",
-            file_size=100
+            file_size=100,
         )
         job.recipients[0].status = RecipientStatus.SUCCESS
         job.recipients[1].status = RecipientStatus.FAILED
@@ -148,14 +151,14 @@ class TestRecipientListAPI:
         data = response.json()
         assert data["total"] == 2
         assert len(data["items"]) == 2
-        
+
         # Verify internal paths are not exposed
         for item in data["items"]:
             assert "storage_path" not in item
-            
+
         success_item = next(i for i in data["items"] if i["status"] == "SUCCESS")
         assert success_item["certificate_id"] == str(cert.id)
-        
+
         failed_item = next(i for i in data["items"] if i["status"] == "FAILED")
         assert failed_item["error_message"] == "Safe error msg"
         assert failed_item["certificate_id"] is None
@@ -166,20 +169,20 @@ class TestRecipientListAPI:
 
     def test_pagination_limits_and_offsets(self, client, db_session):
         job = create_mock_job(db_session, recipient_count=5)
-        
+
         # Page 1: limit 2, offset 0
         res1 = client.get(f"/api/v1/jobs/{job.id}/recipients?limit=2&offset=0")
         assert res1.status_code == 200
         data1 = res1.json()
         assert len(data1["items"]) == 2
         assert data1["total"] == 5
-        
+
         # Page 2: limit 2, offset 2
         res2 = client.get(f"/api/v1/jobs/{job.id}/recipients?limit=2&offset=2")
         assert res2.status_code == 200
         data2 = res2.json()
         assert len(data2["items"]) == 2
-        
+
         # Ensure no overlap
         ids1 = {i["id"] for i in data1["items"]}
         ids2 = {i["id"] for i in data2["items"]}

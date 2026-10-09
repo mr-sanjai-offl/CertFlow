@@ -57,3 +57,29 @@ class LocalStorageService:
 
         # Return just the relative identifier, NOT the absolute machine path
         return final_filename
+
+    def open_artifact(self, relative_path: str):
+        """
+        Opens a stored artifact safely and returns a generator that yields its bytes.
+        Validates the path to prevent directory traversal.
+        """
+        try:
+            base_dir = self.storage_dir.resolve()
+            # Construct target and resolve it to collapse any ".."
+            target_path = (self.storage_dir / relative_path).resolve()
+
+            # Ensure the resolved path strictly starts with the base directory
+            if not target_path.is_relative_to(base_dir):
+                raise StorageError("Path traversal detected")
+        except Exception:
+            raise StorageError("Invalid artifact path")
+
+        if not target_path.exists() or not target_path.is_file():
+            raise StorageError("Artifact not found")
+
+        def file_iterator():
+            with open(target_path, "rb") as f:
+                while chunk := f.read(8192):
+                    yield chunk
+
+        return file_iterator()

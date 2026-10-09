@@ -119,6 +119,12 @@ PostgreSQL (status updates)
 - [x] Job Recipients endpoint with pagination (`GET /api/v1/jobs/{job_id}/recipients`)
 - [x] Progress calculated accurately from recipient outcomes
 
+**Phase 8: Certificate Retrieval and Download API** ✅
+
+- [x] Certificate download endpoint (`GET /api/v1/certificates/{certificate_id}/download`)
+- [x] Stream artifact directly without loading into memory entirely
+- [x] Protect against path traversal and hide storage paths
+
 ## Quick Start
 
 ### Prerequisites
@@ -179,6 +185,7 @@ docker compose up
 | GET | `/api/v1/jobs/{job_id}` | Retrieve job details, counters, and metadata |
 | GET | `/api/v1/jobs/{job_id}/progress` | Retrieve concise processing progress |
 | GET | `/api/v1/jobs/{job_id}/recipients` | List recipients and their results (paginated) |
+| GET | `/api/v1/certificates/{certificate_id}/download` | Download a successfully generated PDF certificate |
 
 ### Polling for Progress
 
@@ -213,6 +220,26 @@ Progress percentage is accurately derived from the actual recipient records in t
 - `COMPLETED`: All recipients successfully processed.
 - `COMPLETED_WITH_ERRORS`: Job finished, but some recipients failed (e.g. invalid email).
 - `FAILED`: Total job failure (e.g. invalid event config) or all recipients failed.
+
+### Downloading Certificates
+
+To download a generated certificate by its ID:
+
+```bash
+curl -f -OJ http://localhost:8000/api/v1/certificates/123e4567-e89b-12d3-a456-426614174000/download
+```
+
+**Expected Success Response Headers:**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="certificate-123e4567-e89b-12d3-a456-426614174000.pdf"
+```
+
+**Possible Errors:**
+- `404 Not Found`: The certificate record does not exist or the underlying PDF artifact is missing.
+
+*Note: Authentication is currently not implemented. This endpoint relies on the application's existing access model.*
 
 ## Environment Variables
 

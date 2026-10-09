@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app.core.config import get_settings
 from app.db.models.enums import JobStatus, RecipientStatus
-from app.schemas.job import EventInfo, JobCreate, JobProgress, JobDetailResponse
+from app.schemas.job import EventInfo, JobCreate, JobDetailResponse
 from app.schemas.recipient import RecipientCreate, RecipientResponse
 
 # --- Valid Input Tests ---
@@ -128,7 +128,7 @@ def test_job_detail_response_serialization():
         event_date=date(2026, 10, 8),
         success_count=50,
         failed_count=10,
-        created_at="2026-10-08T12:00:00Z"
+        created_at="2026-10-08T12:00:00Z",
     )
     dump = response.model_dump(mode="json")
     assert dump["id"] == str(job_id)
