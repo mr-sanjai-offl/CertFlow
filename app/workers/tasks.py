@@ -1,7 +1,8 @@
 import logging
 import uuid
 
-from celery import shared_task
+# Import the Celery app instance to ensure it gets registered as the default app
+from app.workers.celery_app import celery_app
 
 from app.db.models.enums import JobStatus
 from app.db.models.job import GenerationJob
@@ -13,7 +14,7 @@ from app.services.storage import LocalStorageService
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, name="process_generation_job", max_retries=3)
+@celery_app.task(bind=True, name="process_generation_job", max_retries=3)
 def process_generation_job(self, job_id: str):
     """
     Celery task to process an entire GenerationJob.

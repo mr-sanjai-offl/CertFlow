@@ -170,5 +170,5 @@ CertFlow prevents accidentally creating duplicate jobs if you click send twice. 
 
 1. Go back to your **Create a Bulk Generation Job** (`POST`) request.
 2. Without changing the `Idempotency-Key` header (`postman-test-001`), click **Send** again.
-3. Notice that the API returns `200 OK` (instead of `202 Accepted`) and returns the exact same `JOB_ID` that was already created, proving no duplicate was queued!
+3. Notice that the API returns `202 Accepted` but with a status of `COMPLETED` (or whatever its current status is) and returns the exact same `JOB_ID` that was already created, proving no duplicate was queued!
 4. Change the `Idempotency-Key` to `postman-test-002` and click **Send**. You will now get a `202 Accepted` with a brand new `JOB_ID`.

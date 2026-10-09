@@ -275,3 +275,7 @@ ruff format --check .
 - **Synchronous Polling:** Progress tracking currently relies on REST polling. WebSockets or Server-Sent Events (SSE) would improve real-time tracking efficiency.
 - **Local Storage:** Certificates are stored on the local filesystem. This is unsuitable for horizontal scaling. Future enhancements should include an AWS S3 (or compatible) storage implementation behind the `StorageService` abstraction.
 - **Rate Limiting:** No strict API rate limits exist yet to prevent abuse of the generation endpoint.
+
+## 21. Postman Testing Guide
+
+If you'd like to test the entire lifecycle of the API interactively, including environment setup, global authorization headers, and idempotency, check out the complete [Postman Testing Guide](./POSTMAN_GUIDE.md).
