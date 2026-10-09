@@ -9,6 +9,7 @@ These tests verify the core persistence layer, including:
 """
 
 import datetime
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 
@@ -25,7 +26,7 @@ class TestGenerationJob:
             total_count=100,
             event_name="Test",
             event_organization="Org",
-            event_date=datetime.date(2026, 10, 8)
+            event_date=datetime.date(2026, 10, 8),
         )
         db_session.add(job)
         db_session.commit()
@@ -44,7 +45,7 @@ class TestGenerationJob:
             idempotency_key="key-123",
             event_name="Test",
             event_organization="Org",
-            event_date=datetime.date(2026, 10, 8)
+            event_date=datetime.date(2026, 10, 8),
         )
         db_session.add(job1)
         db_session.commit()
@@ -53,7 +54,7 @@ class TestGenerationJob:
             idempotency_key="key-123",
             event_name="Test2",
             event_organization="Org2",
-            event_date=datetime.date(2026, 10, 8)
+            event_date=datetime.date(2026, 10, 8),
         )
         db_session.add(job2)
 
@@ -69,7 +70,7 @@ class TestCertificateRecipient:
         job = GenerationJob(
             event_name="Test Event",
             event_organization="Test Org",
-            event_date=datetime.date(2026, 10, 8)
+            event_date=datetime.date(2026, 10, 8),
         )
         db_session.add(job)
         db_session.commit()
@@ -95,7 +96,7 @@ class TestCertificateRecipient:
         job = GenerationJob(
             event_name="Test Event",
             event_organization="Test Org",
-            event_date=datetime.date(2026, 10, 8)
+            event_date=datetime.date(2026, 10, 8),
         )
         db_session.add(job)
         db_session.commit()
@@ -121,7 +122,7 @@ class TestCertificate:
         job = GenerationJob(
             event_name="Test Event",
             event_organization="Test Org",
-            event_date=datetime.date(2026, 10, 8)
+            event_date=datetime.date(2026, 10, 8),
         )
         db_session.add(job)
         db_session.commit()
@@ -157,7 +158,7 @@ class TestCertificate:
         job = GenerationJob(
             event_name="Test Event",
             event_organization="Test Org",
-            event_date=datetime.date(2026, 10, 8)
+            event_date=datetime.date(2026, 10, 8),
         )
         db_session.add(job)
         db_session.commit()

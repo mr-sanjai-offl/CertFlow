@@ -33,11 +33,11 @@ How would I modify the model if the requirement changes?
   - If we needed jobs to belong to specific users/organizations, we'd add a `user_id` foreign key here, linking to a User model, and index it for efficient retrieval.
 """
 
-import uuid
 import datetime
+import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Date, Index, Integer, String, Uuid
+from sqlalchemy import Date, DateTime, Index, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.base import Base, TimestampMixin
@@ -69,8 +69,12 @@ class GenerationJob(Base, TimestampMixin):
     failed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Lifecycle timestamps (created_at provided by TimestampMixin)
-    started_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Idempotency key to prevent duplicate job creation
     idempotency_key: Mapped[str | None] = mapped_column(
