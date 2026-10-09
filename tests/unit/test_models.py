@@ -8,6 +8,7 @@ These tests verify the core persistence layer, including:
   - Integrity constraints (e.g. uniqueness)
 """
 
+import datetime
 import pytest
 from sqlalchemy.exc import IntegrityError
 
@@ -20,7 +21,12 @@ from app.db.models.recipient import CertificateRecipient
 class TestGenerationJob:
     def test_create_job(self, db_session):
         """A GenerationJob can be created with default values and progress counters."""
-        job = GenerationJob(total_count=100)
+        job = GenerationJob(
+            total_count=100,
+            event_name="Test",
+            event_organization="Org",
+            event_date=datetime.date(2026, 10, 8)
+        )
         db_session.add(job)
         db_session.commit()
 
@@ -34,11 +40,21 @@ class TestGenerationJob:
 
     def test_idempotency_key_uniqueness(self, db_session):
         """Idempotency key must be unique across all jobs."""
-        job1 = GenerationJob(idempotency_key="key-123")
+        job1 = GenerationJob(
+            idempotency_key="key-123",
+            event_name="Test",
+            event_organization="Org",
+            event_date=datetime.date(2026, 10, 8)
+        )
         db_session.add(job1)
         db_session.commit()
 
-        job2 = GenerationJob(idempotency_key="key-123")
+        job2 = GenerationJob(
+            idempotency_key="key-123",
+            event_name="Test2",
+            event_organization="Org2",
+            event_date=datetime.date(2026, 10, 8)
+        )
         db_session.add(job2)
 
         with pytest.raises(IntegrityError):
@@ -50,7 +66,11 @@ class TestGenerationJob:
 class TestCertificateRecipient:
     def test_recipient_belongs_to_job(self, db_session):
         """A Recipient can be added to a job, and the relationship is established."""
-        job = GenerationJob()
+        job = GenerationJob(
+            event_name="Test Event",
+            event_organization="Test Org",
+            event_date=datetime.date(2026, 10, 8)
+        )
         db_session.add(job)
         db_session.commit()
 
@@ -72,7 +92,11 @@ class TestCertificateRecipient:
 
     def test_recipient_failure_information(self, db_session):
         """Failure information (code and message) can be persisted."""
-        job = GenerationJob()
+        job = GenerationJob(
+            event_name="Test Event",
+            event_organization="Test Org",
+            event_date=datetime.date(2026, 10, 8)
+        )
         db_session.add(job)
         db_session.commit()
 
@@ -94,7 +118,11 @@ class TestCertificateRecipient:
 class TestCertificate:
     def test_certificate_belongs_to_recipient(self, db_session):
         """A Certificate belongs to a single Recipient."""
-        job = GenerationJob()
+        job = GenerationJob(
+            event_name="Test Event",
+            event_organization="Test Org",
+            event_date=datetime.date(2026, 10, 8)
+        )
         db_session.add(job)
         db_session.commit()
 
@@ -126,7 +154,11 @@ class TestCertificate:
 
     def test_certificate_unique_recipient(self, db_session):
         """A Recipient can only have one Certificate (1-to-1 relationship enforced)."""
-        job = GenerationJob()
+        job = GenerationJob(
+            event_name="Test Event",
+            event_organization="Test Org",
+            event_date=datetime.date(2026, 10, 8)
+        )
         db_session.add(job)
         db_session.commit()
 

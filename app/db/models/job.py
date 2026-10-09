@@ -34,10 +34,10 @@ How would I modify the model if the requirement changes?
 """
 
 import uuid
-from datetime import datetime
+import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Index, Integer, String, Uuid
+from sqlalchemy import DateTime, Date, Index, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.base import Base, TimestampMixin
@@ -58,14 +58,19 @@ class GenerationJob(Base, TimestampMixin):
         String(50), default=JobStatus.QUEUED, nullable=False, index=True
     )
 
+    # Event details
+    event_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    event_organization: Mapped[str] = mapped_column(String(200), nullable=False)
+    event_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+
     # Counters for efficient progress reporting
     total_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     success_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     failed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Lifecycle timestamps (created_at provided by TimestampMixin)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Idempotency key to prevent duplicate job creation
     idempotency_key: Mapped[str | None] = mapped_column(

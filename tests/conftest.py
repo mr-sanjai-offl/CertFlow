@@ -22,7 +22,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+import app.db.models  # Ensure all models are registered on Base
 from app.db.models.base import Base
 from app.main import create_app
 
@@ -30,6 +32,7 @@ from app.main import create_app
 engine = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -53,9 +56,17 @@ def db_session():
 
 
 @pytest.fixture
-def app():
+def app(db_session):
     """Create a fresh FastAPI application for each test."""
-    return create_app()
+    application = create_app()
+
+    def override_get_db():
+        yield db_session
+
+    from app.db.session import get_db
+
+    application.dependency_overrides[get_db] = override_get_db
+    return application
 
 
 @pytest.fixture

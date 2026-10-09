@@ -77,6 +77,17 @@ class ConflictError(CertFlowError):
         super().__init__(message=message, error_code=error_code, status_code=409)
 
 
+class DatabaseError(CertFlowError):
+    """Raised when a database operation fails unexpectedly."""
+
+    def __init__(
+        self,
+        message: str = "A database error occurred.",
+        error_code: str = "DATABASE_ERROR",
+    ) -> None:
+        super().__init__(message=message, error_code=error_code, status_code=500)
+
+
 # ---------------------------------------------------------------------------
 # Exception handlers — register these on the FastAPI app
 # ---------------------------------------------------------------------------
