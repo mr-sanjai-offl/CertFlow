@@ -120,3 +120,89 @@ def create_job(db: Session, job_in: JobCreate, idempotency_key: str | None = Non
         db.rollback()
         logger.error(f"Unexpected error during job creation: {str(e)}")
         raise DatabaseError("An unexpected error occurred while persisting the job.") from e
+
+
+def get_job(db: Session, job_id: str) -> GenerationJob | None:
+    """Retrieve a job by ID."""
+    try:
+        job_uuid = uuid.UUID(job_id)
+        return db.query(GenerationJob).filter_by(id=job_uuid).first()
+    except ValueError:
+        return None
+
+
+def get_job_progress(db: Session, job_id: str) -> dict | None:
+    """
+    Calculate and return the progress of a job based on actual recipient statuses.
+    This ensures accurate progress reporting even while the worker is actively
+    processing and hasn't yet committed the final job-level counters.
+    """
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        return None
+
+    job = db.query(GenerationJob).filter_by(id=job_uuid).first()
+    if not job:
+        return None
+
+    from sqlalchemy import func
+
+    counts = (
+        db.query(CertificateRecipient.status, func.count(CertificateRecipient.id))
+        .filter(CertificateRecipient.job_id == job_uuid)
+        .group_by(CertificateRecipient.status)
+        .all()
+    )
+
+    count_map = {status: 0 for status in RecipientStatus}
+    for status, count in counts:
+        count_map[status] = count
+
+    success = count_map[RecipientStatus.SUCCESS]
+    failed = count_map[RecipientStatus.FAILED]
+    pending = count_map[RecipientStatus.PENDING]
+    processing = count_map[RecipientStatus.PROCESSING]
+
+    # Calculate actual total from recipients
+    total = success + failed + pending + processing
+    percentage = 0.0
+    if total > 0:
+        percentage = ((success + failed) / total) * 100.0
+
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "total_count": total,
+        "success_count": success,
+        "failed_count": failed,
+        "pending_count": pending,
+        "processing_count": processing,
+        "progress_percentage": round(percentage, 2),
+    }
+
+
+def get_job_recipients(
+    db: Session, job_id: str, limit: int, offset: int
+) -> tuple[list[CertificateRecipient] | None, int]:
+    """Retrieve a paginated list of recipients for a job."""
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        return None, 0
+
+    job = db.query(GenerationJob).filter_by(id=job_uuid).first()
+    if not job:
+        return None, 0
+
+    total = db.query(CertificateRecipient).filter_by(job_id=job_uuid).count()
+    items = (
+        db.query(CertificateRecipient)
+        .filter_by(job_id=job_uuid)
+        .order_by(CertificateRecipient.created_at, CertificateRecipient.id)
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+
+    return items, total

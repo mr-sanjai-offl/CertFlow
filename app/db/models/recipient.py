@@ -93,3 +93,8 @@ class CertificateRecipient(Base, TimestampMixin):
         uselist=False,
         cascade="all, delete-orphan",
     )
+
+    @property
+    def certificate_id(self) -> uuid.UUID | None:
+        """Expose the associated certificate's ID if one exists."""
+        return self.certificate.id if self.certificate else None

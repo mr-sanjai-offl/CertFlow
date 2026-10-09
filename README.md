@@ -112,6 +112,13 @@ PostgreSQL (status updates)
 - [x] Idempotent retry handling
 - [x] Docker compose worker setup
 
+**Phase 7: Job Status and Progress API** ✅
+
+- [x] Job Details endpoint (`GET /api/v1/jobs/{job_id}`)
+- [x] Job Progress endpoint (`GET /api/v1/jobs/{job_id}/progress`)
+- [x] Job Recipients endpoint with pagination (`GET /api/v1/jobs/{job_id}/recipients`)
+- [x] Progress calculated accurately from recipient outcomes
+
 ## Quick Start
 
 ### Prerequisites
@@ -162,14 +169,50 @@ docker compose up
 # Swagger docs at http://localhost:8000/docs
 ```
 
-## API Endpoints (Phase 1)
+## API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/health` | Liveness check — is the process running? |
 | GET | `/health/ready` | Readiness check — are dependencies reachable? |
+| POST | `/api/v1/jobs` | Create a new bulk generation job. Returns `202 Accepted` |
+| GET | `/api/v1/jobs/{job_id}` | Retrieve job details, counters, and metadata |
+| GET | `/api/v1/jobs/{job_id}/progress` | Retrieve concise processing progress |
+| GET | `/api/v1/jobs/{job_id}/recipients` | List recipients and their results (paginated) |
 
-More endpoints will be added in subsequent phases.
+### Polling for Progress
+
+To track a job, clients should poll the progress endpoint:
+
+```http
+GET /api/v1/jobs/123e4567-e89b-12d3-a456-426614174000/progress
+```
+
+**Example Response:**
+```json
+{
+  "job_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "PROCESSING",
+  "total_count": 100,
+  "success_count": 50,
+  "failed_count": 5,
+  "pending_count": 45,
+  "processing_count": 0,
+  "progress_percentage": 55.0
+}
+```
+
+**How Progress is Calculated:**
+Progress percentage is accurately derived from the actual recipient records in the database, even while the background worker is running:
+`((success_count + failed_count) / total_count) * 100`
+
+### Job Status Meanings
+
+- `QUEUED`: Job is waiting to be picked up by the Celery worker.
+- `PROCESSING`: Worker is actively generating certificates.
+- `COMPLETED`: All recipients successfully processed.
+- `COMPLETED_WITH_ERRORS`: Job finished, but some recipients failed (e.g. invalid email).
+- `FAILED`: Total job failure (e.g. invalid event config) or all recipients failed.
 
 ## Environment Variables
 

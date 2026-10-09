@@ -83,7 +83,9 @@ def test_task_processes_all_recipients_failed(
 @patch("app.workers.tasks.SessionLocal")
 @patch("app.workers.tasks.LocalStorageService")
 @patch("app.workers.tasks.process_recipient")
-def test_task_processes_mixed_outcomes(mock_process, mock_storage, mock_session_local, mock_retry, db_session):
+def test_task_processes_mixed_outcomes(
+    mock_process, mock_storage, mock_session_local, mock_retry, db_session
+):
     """Test job transitions to COMPLETED_WITH_ERRORS on mixed outcomes."""
     mock_db = MagicMock(wraps=db_session)
     mock_db.close.return_value = None

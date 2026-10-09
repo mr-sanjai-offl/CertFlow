@@ -53,3 +53,14 @@ class RecipientResponse(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedRecipientResponse(BaseModel):
+    """
+    Paginated list of recipients for a job.
+    """
+
+    items: list[RecipientResponse]
+    total: int
+    limit: int
+    offset: int

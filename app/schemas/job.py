@@ -68,21 +68,33 @@ class JobResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class JobDetailResponse(JobResponse):
+    """
+    Detailed job response containing event info, counters, and timestamps.
+    """
+
+    event_name: str
+    event_organization: str
+    event_date: datetime.date
+    success_count: int
+    failed_count: int
+    created_at: datetime.datetime
+    updated_at: datetime.datetime | None = None
+    completed_at: datetime.datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class JobProgress(BaseModel):
     """
-    Dedicated progress schema, derived from job counters.
+    Dedicated progress schema, derived from job counters and recipient statuses.
     """
 
-    total: int
-    completed: int
-    failed: int
-    pending: int
-    percentage: float = Field(..., ge=0.0, le=100.0)
-
-
-class JobStatusResponse(JobResponse):
-    """
-    Extended job response that includes detailed progress information.
-    """
-
-    progress: JobProgress = Field(..., description="Detailed processing progress.")
+    job_id: uuid.UUID = Field(..., description="Unique job identifier.")
+    status: JobStatus = Field(..., description="Current processing status.")
+    total_count: int = Field(..., description="Total recipients.")
+    success_count: int = Field(..., description="Successfully processed recipients.")
+    failed_count: int = Field(..., description="Failed recipients.")
+    pending_count: int = Field(..., description="Recipients waiting to be processed.")
+    processing_count: int = Field(..., description="Recipients currently processing.")
+    progress_percentage: float = Field(..., ge=0.0, le=100.0, description="Percentage completed.")

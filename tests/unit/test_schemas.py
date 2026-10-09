@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app.core.config import get_settings
 from app.db.models.enums import JobStatus, RecipientStatus
-from app.schemas.job import EventInfo, JobCreate, JobProgress, JobStatusResponse
+from app.schemas.job import EventInfo, JobCreate, JobProgress, JobDetailResponse
 from app.schemas.recipient import RecipientCreate, RecipientResponse
 
 # --- Valid Input Tests ---
@@ -116,19 +116,25 @@ def test_invalid_event_date():
 # --- Response Serialization Tests ---
 
 
-def test_job_status_response_serialization():
+def test_job_detail_response_serialization():
     """Enums, UUIDs, and nested progress should serialize correctly."""
     job_id = uuid.uuid4()
-    response = JobStatusResponse(
+    response = JobDetailResponse(
         id=job_id,
         status=JobStatus.PROCESSING,
         total_count=100,
-        progress=JobProgress(total=100, completed=50, failed=10, pending=40, percentage=60.0),
+        event_name="Test Event",
+        event_organization="Test Org",
+        event_date=date(2026, 10, 8),
+        success_count=50,
+        failed_count=10,
+        created_at="2026-10-08T12:00:00Z"
     )
     dump = response.model_dump(mode="json")
     assert dump["id"] == str(job_id)
     assert dump["status"] == "PROCESSING"  # Enum string representation
-    assert dump["progress"]["percentage"] == 60.0
+    assert dump["event_name"] == "Test Event"
+    assert dump["success_count"] == 50
 
 
 def test_recipient_response_nullable_fields():
