@@ -125,6 +125,12 @@ PostgreSQL (status updates)
 - [x] Stream artifact directly without loading into memory entirely
 - [x] Protect against path traversal and hide storage paths
 
+**Phase 9: API Key Authentication and Authorization** ✅
+
+- [x] Protect API using standard `X-API-Key` headers
+- [x] Fail-closed validation for configured keys
+- [x] Unauthenticated health checks for orchestrator monitoring
+
 ## Quick Start
 
 ### Prerequisites

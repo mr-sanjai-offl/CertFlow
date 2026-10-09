@@ -10,7 +10,8 @@ Interview note:
   The v1 routes continue to work unchanged.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.core.security import get_api_key
 
 from app.api.v1.certificates import router as certificates_router
 from app.api.v1.health import router as health_router
@@ -24,5 +25,5 @@ v1_router = APIRouter()
 health_router_for_root = health_router
 
 # API-versioned routes will be added in later phases:
-v1_router.include_router(jobs_router, prefix="/jobs")
-v1_router.include_router(certificates_router, prefix="/certificates")
+v1_router.include_router(jobs_router, prefix="/jobs", dependencies=[Depends(get_api_key)])
+v1_router.include_router(certificates_router, prefix="/certificates", dependencies=[Depends(get_api_key)])

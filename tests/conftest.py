@@ -73,8 +73,10 @@ def app(db_session):
         yield db_session
 
     from app.db.session import get_db
+    from app.core.security import get_api_key
 
     application.dependency_overrides[get_db] = override_get_db
+    application.dependency_overrides[get_api_key] = lambda: "test-secret-key"
     return application
 
 

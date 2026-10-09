@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # --- Logging ---
     LOG_LEVEL: str = "INFO"
 
+    # --- Security ---
+    API_KEY: str | None = None
+
     # --- Environment ---
     ENVIRONMENT: str = "development"
 
