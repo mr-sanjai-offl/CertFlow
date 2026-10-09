@@ -274,4 +274,4 @@ ruff format --check .
 - **Single-Tenant Authorization:** Currently, the API uses a single global `API_KEY` for all authentication. It prevents anonymous access but does not provide multi-tenant or per-user data isolation. Any valid key can access any job.
 - **Synchronous Polling:** Progress tracking currently relies on REST polling. WebSockets or Server-Sent Events (SSE) would improve real-time tracking efficiency.
 - **Local Storage:** Certificates are stored on the local filesystem. This is unsuitable for horizontal scaling. Future enhancements should include an AWS S3 (or compatible) storage implementation behind the `StorageService` abstraction.
-- **Rate Limiting:** No strict API rate limits exist yet to prevent abuse of the generation endpoint.
+- **Rate Limiting:** No strict API rate limits exist yet to prevent abuse of the generation endpoint..
